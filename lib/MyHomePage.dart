@@ -257,6 +257,9 @@ class _MyHomePageState extends State<MyHomePage> {
                         // Assuming _localVideoRenderer is an RTCVideoRenderer
                         await _localVideoRenderer.dispose();
                         await _localVideoRenderer.initialize();
+                        setState(() {
+
+                        });
                       },
                       child: const Text("Refresh local"),
                     ),
@@ -265,6 +268,9 @@ class _MyHomePageState extends State<MyHomePage> {
                         // Assuming _localVideoRenderer is an RTCVideoRenderer
                         await _remoteVideoRenderer.dispose();
                         await _remoteVideoRenderer.initialize();
+                        setState(() {
+
+                        });
                       },
                       child: const Text("Refresh Remote"),
                     ),
