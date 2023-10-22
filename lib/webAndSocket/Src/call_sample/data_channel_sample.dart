@@ -8,7 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 class DataChannelSample extends StatefulWidget {
   static String tag = 'call_sample';
   final String host;
-  DataChannelSample({required this.host});
+  const DataChannelSample({super.key, required this.host});
 
   @override
   _DataChannelSampleState createState() => _DataChannelSampleState();
@@ -30,6 +30,7 @@ class _DataChannelSampleState extends State<DataChannelSample> {
   @override
   initState() {
     super.initState();
+    print('Data channel .......');
     _connect(context);
   }
 

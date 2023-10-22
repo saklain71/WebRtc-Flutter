@@ -7,7 +7,7 @@ import 'package:webrtc_flutter/webAndSocket/Src/call_sample/signaling.dart';
 class CallSample extends StatefulWidget {
   static String tag = 'call_sample';
   final String host;
-  CallSample({required this.host});
+  const CallSample({super.key, required this.host});
 
   @override
   _CallSampleState createState() => _CallSampleState();
@@ -31,6 +31,7 @@ class _CallSampleState extends State<CallSample> {
   initState() {
     super.initState();
     initRenderers();
+    print('Calling channel .......');
     _connect(context);
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -6,13 +7,15 @@ import 'package:http/http.dart' as http;
 
 
 class MyHomeToSocket extends StatefulWidget {
+   const MyHomeToSocket({super.key});
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomeToSocket> {
-  RTCVideoRenderer? _localRenderer = RTCVideoRenderer();
-  RTCVideoRenderer? _remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   RTCPeerConnection? _peerConnection;
   IO.Socket? socket;
 
@@ -24,9 +27,9 @@ class _MyHomePageState extends State<MyHomeToSocket> {
   @override
   void initState() {
     super.initState();
-    _localRenderer!.initialize();
-    _remoteRenderer!.initialize();
-    connect();
+    _localRenderer.initialize();
+    _remoteRenderer.initialize();
+    //connect();
   }
 
 
@@ -39,7 +42,9 @@ class _MyHomePageState extends State<MyHomeToSocket> {
     socket!.connect();
 
     socket!.onConnect((data) {
-      print("Connected");
+      if (kDebugMode) {
+        print("Connected");
+      }
       socket!.emit('offer',(offer){
 
       });
@@ -51,11 +56,15 @@ class _MyHomePageState extends State<MyHomeToSocket> {
 
 
 
-    print(socket!.connected);
+    if (kDebugMode) {
+      print(socket!.connected);
+    }
     socket!.onDisconnect((_) => print('Connection Disconnection'));
     socket!.onConnectError((err) => print("onConnectError $err"));
     socket!.onError((err) => print("onError $err"));
-    print(socket!.disconnected);
+    if (kDebugMode) {
+      print(socket!.disconnected);
+    }
 
   }
 
@@ -75,7 +84,7 @@ class _MyHomePageState extends State<MyHomeToSocket> {
     };
     pc.onAddStream = (stream) {
       // Handle remote stream, including video and audio
-      _remoteRenderer!.srcObject = stream;
+      _remoteRenderer.srcObject = stream;
     };
 
     // Add local audio and video streams
@@ -114,8 +123,8 @@ class _MyHomePageState extends State<MyHomeToSocket> {
 
   @override
   void dispose() {
-    _localRenderer!.dispose();
-    _remoteRenderer!.dispose();
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
     _peerConnection?.close();
     super.dispose();
   }
@@ -124,20 +133,20 @@ class _MyHomePageState extends State<MyHomeToSocket> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Simple Flutter WebRTC Video Call'),
+        title: const Text('Simple Flutter WebRTC Video Call'),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            RTCVideoView(_remoteRenderer!),
-            SizedBox(height: 20.0),
+            RTCVideoView(_remoteRenderer),
+            const SizedBox(height: 20.0),
             if (isCalling)
               ElevatedButton(
                 onPressed: () {
                   // Implement hang up logic
                 },
-                child: Text('End Call'),
+                child: const Text('End Call'),
               )
             else if (isReceivingCall)
               Row(
@@ -147,7 +156,7 @@ class _MyHomePageState extends State<MyHomeToSocket> {
                     onPressed: () {
                       _answerCall();
                     },
-                    child: Text('Answer Call'),
+                    child: const Text('Answer Call'),
                   ),
                 ],
               )
@@ -159,7 +168,7 @@ class _MyHomePageState extends State<MyHomeToSocket> {
                     onPressed: () {
                       _startCall();
                     },
-                    child: Text('Call'),
+                    child: const Text('Call'),
                   ),
                   ElevatedButton(
                     onPressed: () {
