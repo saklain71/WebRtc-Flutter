@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:html';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:sdp_transform/sdp_transform.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:webrtc_flutter/test_page.dart';
 
 
 
@@ -22,6 +24,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   final _remoteVideoRenderer = RTCVideoRenderer();
   final sdpController = TextEditingController();
   bool _offer = false;
+  bool _server = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+
   // AnimationController? _controller;
 
 
@@ -75,7 +81,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         if(answerSdp != null){
            // var data = answerSdp.toString();
           // dynamic jsonString = await json.decode(data);
-          //print("answerSdp $answerSdp");
+          // print("answerSdp $answerSdp");
           dynamic jsonString = json.encode(answerSdp);
           print('answerSdp encode $jsonString');
           await setRemoteDescriptionFuncRecieved(jsonString);
@@ -97,12 +103,41 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         addCandidate(candidate);
       });
 
+      socket!.on('bye', (dropCall) async {
+        print('cut the call recieved $dropCall');
+        if(dropCall != null) {
+          // _cutCall();
+          // cutCall();
+
+          setState(() {
+            _peerConnection!.close();
+            _peerConnection = null;
+          });
+
+           // _localStream!.dispose();
+           // _localVideoRenderer.dispose();
+
+          //  await _localVideoRenderer.dispose();
+          //  await _localStream!.dispose();
+
+           // RtcPeerConnection.removeStreamEvent;
+           socket!.disconnect();
+           // Navigator.pop(context);
+           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>const TestPage()));
+        }
+      });
+
+      socket!.on('disconnectError', (disconnect)async{
+        if(disconnect != null){
+          _server = false;
+        }
+      });
+
     });
 
     socket!.on("sdpOffer", (data) {
       print("message from server  sdpOffer $data");
       if(data != null){
-
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               duration: const Duration(seconds: 10),
@@ -148,11 +183,18 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     });
 
     print(socket!.connected);
-    socket!.onDisconnect((_) => print('Connection Disconnection'));
+    socket!.onDisconnect(
+        (_){
+          setState(() {
+            _server = false;
+          });
+          print('Connection Disconnection');
+        }
+            // (_) => print('Connection Disconnection')
+    );
     socket!.onConnectError((err) => print("onConnectError $err"));
     socket!.onError((err) => print("onError $err"));
     print(socket!.disconnected);
-
   }
 
 
@@ -220,11 +262,15 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     RTCPeerConnection pc =
     await createPeerConnection(configuration, offerSdpConstraints);
 
-    pc.addStream(_localStream!);
+    // pc.addStream(_localStream!);
 
-    // _localStream?.getTracks().forEach((track) {
-    //   pc.addTrack(track, _localStream!);
-    // });
+    _localStream?.getTracks().forEach((track) {
+      pc.addTrack(track, _localStream!);
+    });
+
+    _remoteStream?.getTracks().forEach((track) {
+      pc.addTrack(track, _remoteStream!);
+    });
 
    // pc.addStream(_remoteStream!);
 
@@ -242,14 +288,13 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           'sdpMlineIndex': e.sdpMLineIndex,
         });
 
-        setState(() {
+        // setState(() {
           candidateList.add(json.decode(value));
-        });
+        // });
         print('candidate $value}');
         print('candidateList $candidateList}');
       }
     };
-
 
 
     pc.onIceConnectionState = (e) {
@@ -267,6 +312,17 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   }
 
   void _createOffer() async {
+    RTCSessionDescription description =
+    await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
+    var session = parse(description.sdp.toString());
+     var jsonSession = json.encode(session);
+     print(jsonSession);
+    _offer = true;
+    _peerConnection!.setLocalDescription(description);
+     socket!.emit('sdpOffer', jsonSession);
+  }
+
+    createOffer() async {
     RTCSessionDescription description =
     await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
     var session = parse(description.sdp.toString());
@@ -308,7 +364,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       if(candidateList.isNotEmpty){
         socket!.emit('candidate', candidateList[0]);
       }
-
     });
   }
 
@@ -402,10 +457,31 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   }
 
    void _cutCall() async{
+
      await _peerConnection!.close();
      await _localVideoRenderer.dispose();
      await _localStream!.dispose();
-     // Navigator.pop(context);
+     socket!.disconnect();
+     socket!.emit('bye', 'cutCall');
+     //Navigator.pop(context, MaterialPageRoute(builder: (context)=> TestPage()));
+     Navigator.pop(context);
+  }
+
+  cutCall() {
+
+    setState(() {
+      _peerConnection!.close();
+      _peerConnection = null;
+    });
+    // _localStream!.dispose();
+    // _localVideoRenderer.dispose();
+
+    // await _localVideoRenderer.dispose();
+    // await _localStream!.dispose();
+    socket!.emit('bye', 'cutCall');
+    socket!.disconnect();
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>const TestPage()));
+    //Navigator.pop(context);
   }
 
   @override
@@ -425,9 +501,12 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   void dispose() async {
     await _localVideoRenderer.dispose();
     await _remoteVideoRenderer.dispose();
-    _peerConnection!.close();
+    // _peerConnection!.close();
     sdpController.dispose();
     //_controller!.dispose();
+    if (_peerConnection != null) {
+      _peerConnection!.close();
+    }
     super.dispose();
   }
 
@@ -458,172 +537,189 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
         appBar: AppBar(
           title: Text(widget.title),
         ),
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              videoRenderers(),
+        body: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                videoRenderers(),
 
-              // Padding(
-              //   padding: const EdgeInsets.all(16.0),
-              //   child: SizedBox(
-              //     width: MediaQuery.of(context).size.width * 0.5,
-              //     child: TextField(
-              //       controller: sdpController,
-              //       keyboardType: TextInputType.multiline,
-              //       maxLines: 4,
-              //       maxLength: TextField.noMaxLength,
-              //     ),
-              //   ),
-              // ),
+                // Padding(
+                //   padding: const EdgeInsets.all(16.0),
+                //   child: SizedBox(
+                //     width: MediaQuery.of(context).size.width * 0.5,
+                //     child: TextField(
+                //       controller: sdpController,
+                //       keyboardType: TextInputType.multiline,
+                //       maxLines: 4,
+                //       maxLength: TextField.noMaxLength,
+                //     ),
+                //   ),
+                // ),
 
-                  const SizedBox(
-                        height: 20,
-                      ),
+                    const SizedBox(
+                          height: 20,
+                        ),
 
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: _createOffer,
-                    child: const Text("Call",
-                      style: TextStyle(
-                        color: Colors.green,
-
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      // onPressed: _createOffer,
+                      onPressed: () {
+                        if(socket!.connected == true){
+                          // (_) => _createOffer;
+                           createOffer();
+                        }else{
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              // duration: const Duration(seconds: 1),
+                              backgroundColor: Colors.red,
+                              content: const Text('Server Error ***'),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text("Call",
+                        style: TextStyle(
+                          color: Colors.green,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 100,),
-                  ElevatedButton(
-                    onPressed: _cutCall,
-                    child: const Text("Bye",
-                      style: TextStyle(
-                        color: Colors.red,
+                    const SizedBox(width: 100,),
+                    ElevatedButton(
+                      onPressed: cutCall,
+                      child: const Text("Bye",
+                        style: TextStyle(
+                          color: Colors.red,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              )
-              // const SizedBox(
-              //   height: 10,
-              // ),
-              // ElevatedButton(
-              //   onPressed: _createAnswer,
-              //   child: const Text("Answer"),
-              // ),
-              // const SizedBox(
-              //   height: 10,
-              // ),
-              // ElevatedButton(
-              //   onPressed: _setRemoteDescription,
-              //   // onPressed: (){
-              //   //   //_setRemoteDescription('abcd');
-              //   // },
-              //   child: const Text("Set Remote Description"),
-              // ),
-              // const SizedBox(
-              //   height: 10,
-              // ),
-              // ElevatedButton(
-              //   onPressed: _addCandidate,
-              //   child: const Text("Set Candidate"),
-              // ),
-              // ElevatedButton(
-              //   onPressed: _cutCall,
-              //   child: const Text("Bye"),
-              // ),
+                  ],
+                )
+                // const SizedBox(
+                //   height: 10,
+                // ),
+                // ElevatedButton(
+                //   onPressed: _createAnswer,
+                //   child: const Text("Answer"),
+                // ),
+                // const SizedBox(
+                //   height: 10,
+                // ),
+                // ElevatedButton(
+                //   onPressed: _setRemoteDescription,
+                //   // onPressed: (){
+                //   //   //_setRemoteDescription('abcd');
+                //   // },
+                //   child: const Text("Set Remote Description"),
+                // ),
+                // const SizedBox(
+                //   height: 10,
+                // ),
+                // ElevatedButton(
+                //   onPressed: _addCandidate,
+                //   child: const Text("Set Candidate"),
+                // ),
+                // ElevatedButton(
+                //   onPressed: _cutCall,
+                //   child: const Text("Bye"),
+                // ),
 
 
-              // Row(
-              //   children: [
-              //     // Padding(
-              //     //   padding: const EdgeInsets.all(16.0),
-              //     //   child: SizedBox(
-              //     //     width: MediaQuery.of(context).size.width * 0.5,
-              //     //     child: TextField(
-              //     //       controller: sdpController,
-              //     //       keyboardType: TextInputType.multiline,
-              //     //       maxLines: 4,
-              //     //       maxLength: TextField.noMaxLength,
-              //     //     ),
-              //     //   ),
-              //     // ),
-              //
-              //
-              //     // Column(
-              //     //   crossAxisAlignment: CrossAxisAlignment.center,
-              //     //   children: [
-              //     //
-              //     //     Padding(
-              //     //       padding: const EdgeInsets.all(16.0),
-              //     //       child: SizedBox(
-              //     //         width: MediaQuery.of(context).size.width * 0.5,
-              //     //         child: TextField(
-              //     //           controller: sdpController,
-              //     //           keyboardType: TextInputType.multiline,
-              //     //           maxLines: 4,
-              //     //           maxLength: TextField.noMaxLength,
-              //     //         ),
-              //     //       ),
-              //     //     ),
-              //     //
-              //     //     ElevatedButton(
-              //     //       onPressed: _createOffer,
-              //     //       child: const Text("Offer"),
-              //     //     ),
-              //     //     const SizedBox(
-              //     //       height: 10,
-              //     //     ),
-              //     //     ElevatedButton(
-              //     //       onPressed: _createAnswer,
-              //     //       child: const Text("Answer"),
-              //     //     ),
-              //     //     const SizedBox(
-              //     //       height: 10,
-              //     //     ),
-              //     //     ElevatedButton(
-              //     //       onPressed: _setRemoteDescription,
-              //     //       child: const Text("Set Remote Description"),
-              //     //     ),
-              //     //     const SizedBox(
-              //     //       height: 10,
-              //     //     ),
-              //     //     ElevatedButton(
-              //     //       onPressed: _addCandidate,
-              //     //       child: const Text("Set Candidate"),
-              //     //     ),
-              //     //     // ElevatedButton(
-              //     //     //   onPressed: () async{
-              //     //     //     // Assuming _localVideoRenderer is an RTCVideoRenderer
-              //     //     //     await _localVideoRenderer.dispose();
-              //     //     //     await _localVideoRenderer.initialize();
-              //     //     //     setState(() {
-              //     //     //
-              //     //     //     });
-              //     //     //   },
-              //     //     //   child: const Text("Refresh local"),
-              //     //     // ),
-              //     //     // ElevatedButton(
-              //     //     //   onPressed: () async{
-              //     //     //     // Assuming _localVideoRenderer is an RTCVideoRenderer
-              //     //     //     await _remoteVideoRenderer.dispose();
-              //     //     //     await _remoteVideoRenderer.initialize();
-              //     //     //     setState(() {
-              //     //     //
-              //     //     //     });
-              //     //     //   },
-              //     //     //   child: const Text("Refresh Remote"),
-              //     //     // ),
-              //     //
-              //     //   ],
-              //     // )
-              //
-              //   ],
-              // ),
-            ],
+                // Row(
+                //   children: [
+                //     // Padding(
+                //     //   padding: const EdgeInsets.all(16.0),
+                //     //   child: SizedBox(
+                //     //     width: MediaQuery.of(context).size.width * 0.5,
+                //     //     child: TextField(
+                //     //       controller: sdpController,
+                //     //       keyboardType: TextInputType.multiline,
+                //     //       maxLines: 4,
+                //     //       maxLength: TextField.noMaxLength,
+                //     //     ),
+                //     //   ),
+                //     // ),
+                //
+                //
+                //     // Column(
+                //     //   crossAxisAlignment: CrossAxisAlignment.center,
+                //     //   children: [
+                //     //
+                //     //     Padding(
+                //     //       padding: const EdgeInsets.all(16.0),
+                //     //       child: SizedBox(
+                //     //         width: MediaQuery.of(context).size.width * 0.5,
+                //     //         child: TextField(
+                //     //           controller: sdpController,
+                //     //           keyboardType: TextInputType.multiline,
+                //     //           maxLines: 4,
+                //     //           maxLength: TextField.noMaxLength,
+                //     //         ),
+                //     //       ),
+                //     //     ),
+                //     //
+                //     //     ElevatedButton(
+                //     //       onPressed: _createOffer,
+                //     //       child: const Text("Offer"),
+                //     //     ),
+                //     //     const SizedBox(
+                //     //       height: 10,
+                //     //     ),
+                //     //     ElevatedButton(
+                //     //       onPressed: _createAnswer,
+                //     //       child: const Text("Answer"),
+                //     //     ),
+                //     //     const SizedBox(
+                //     //       height: 10,
+                //     //     ),
+                //     //     ElevatedButton(
+                //     //       onPressed: _setRemoteDescription,
+                //     //       child: const Text("Set Remote Description"),
+                //     //     ),
+                //     //     const SizedBox(
+                //     //       height: 10,
+                //     //     ),
+                //     //     ElevatedButton(
+                //     //       onPressed: _addCandidate,
+                //     //       child: const Text("Set Candidate"),
+                //     //     ),
+                //     //     // ElevatedButton(
+                //     //     //   onPressed: () async{
+                //     //     //     // Assuming _localVideoRenderer is an RTCVideoRenderer
+                //     //     //     await _localVideoRenderer.dispose();
+                //     //     //     await _localVideoRenderer.initialize();
+                //     //     //     setState(() {
+                //     //     //
+                //     //     //     });
+                //     //     //   },
+                //     //     //   child: const Text("Refresh local"),
+                //     //     // ),
+                //     //     // ElevatedButton(
+                //     //     //   onPressed: () async{
+                //     //     //     // Assuming _localVideoRenderer is an RTCVideoRenderer
+                //     //     //     await _remoteVideoRenderer.dispose();
+                //     //     //     await _remoteVideoRenderer.initialize();
+                //     //     //     setState(() {
+                //     //     //
+                //     //     //     });
+                //     //     //   },
+                //     //     //   child: const Text("Refresh Remote"),
+                //     //     // ),
+                //     //
+                //     //   ],
+                //     // )
+                //
+                //   ],
+                // ),
+              ],
+            ),
           ),
         ));
   }

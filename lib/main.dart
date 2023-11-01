@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:webrtc_flutter/test_page.dart';
 import 'MyHomePage.dart';
 
 void main() {
@@ -18,8 +19,8 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home:  const MyHomePage(title: 'Flutter Demo Home Page',),
-      //home:  MyHomeToSocket(),
+      // home: const MyHomePage(title: 'Flutter Demo Home Page',),
+      home:  const TestPage(),
     );
   }
 }
