@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html';
 import 'dart:math';
@@ -25,6 +26,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   final sdpController = TextEditingController();
   bool _offer = false;
   bool _server = false;
+
+  //final audioPlayer = AudioPlayer();
+
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
 
@@ -85,7 +90,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           dynamic jsonString = json.encode(answerSdp);
           print('answerSdp encode $jsonString');
           await setRemoteDescriptionFuncRecieved(jsonString);
-
         }
       });
 
@@ -109,20 +113,16 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           // _cutCall();
           // cutCall();
 
-          setState(() {
-            _peerConnection!.close();
-            _peerConnection = null;
-          });
 
+          // await  _peerConnection!.close();
+          //   _peerConnection = null;
            // _localStream!.dispose();
            // _localVideoRenderer.dispose();
-
           //  await _localVideoRenderer.dispose();
           //  await _localStream!.dispose();
-
            // RtcPeerConnection.removeStreamEvent;
+
            socket!.disconnect();
-           // Navigator.pop(context);
            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>const TestPage()));
         }
       });
@@ -202,9 +202,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
     // final Map<String, dynamic> mediaConstraints = {
     //   'audio': true,
-      // 'video': {
-      //   'facingMode': 'user',
-      // }
+    //   'video': {
+    //     'facingMode': 'user',
+    //   }
     // };
 
     final Map<String, dynamic> mediaConstraints = {
@@ -222,6 +222,24 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
     MediaStream stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
     _localVideoRenderer.srcObject = stream;
+
+    final audioTrack = stream.getAudioTracks().first;
+    audioTrack.onUnMute;
+    audioTrack.muted;
+    audioTrack.enabled;
+    audioTrack.getConstraints();
+
+
+    print('audioTrack  ${audioTrack.onUnMute} ${audioTrack.muted} ${audioTrack.enabled}');
+
+    // _peerConnection?.addTrack(audioTrack, stream);
+
+    // Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+    //   bool audioLevel = audioTrack.enabled;
+    //   print('Audio level: $audioLevel');
+    // });
+
+    // setState(() { });
     return stream;
   }
 
@@ -235,6 +253,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     //     },
     //   ]
     // };
+    // if(mounted){
+    //   setState(() { });
+    // }
 
     Map<String, dynamic> configuration = {
       'iceServers': [
@@ -265,14 +286,22 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     // pc.addStream(_localStream!);
 
     _localStream?.getTracks().forEach((track) {
-      pc.addTrack(track, _localStream!);
+      //pc.addTrack(track, _localStream!);
+      pc.addStream(_localStream!);
+      print('local audioi track $track');
+      print('local audioi pc $pc');
+      print('local track.enabled   ${track.enabled}');
+      print('local track.muted   ${track.muted == true}');
+      print('local track.onMute   ${track.onMute}');
+      print('local track.onUnMute   ${track.onUnMute}');
+
     });
 
-    _remoteStream?.getTracks().forEach((track) {
-      pc.addTrack(track, _remoteStream!);
-    });
+    // _remoteStream?.getTracks().forEach((track) {
+    //   pc.addTrack(track, _remoteStream!);
+    // });
 
-   // pc.addStream(_remoteStream!);
+
 
     pc.onIceCandidate = (e) {
       if (e.candidate != null) {
@@ -288,9 +317,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           'sdpMlineIndex': e.sdpMLineIndex,
         });
 
-        // setState(() {
-          candidateList.add(json.decode(value));
-        // });
+         candidateList.add(json.decode(value));
+
         print('candidate $value}');
         print('candidateList $candidateList}');
       }
@@ -303,7 +331,20 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
     pc.onAddStream = (stream) {
       print('addStream: ' + stream.id);
-      _remoteVideoRenderer.srcObject = stream;
+      final remoteAudioStream = stream.getAudioTracks();
+      print('remoteAudioStream ${remoteAudioStream[0].muted}');
+
+       _remoteVideoRenderer.srcObject = stream;
+
+
+       bool? mutedValue = remoteAudioStream[0].muted;
+       print('mutedValue $mutedValue');
+       print('remoteAudioStream  src ${_remoteVideoRenderer.srcObject}');
+
+
+
+      // _remoteVideoRenderer.srcObject = stream.getAudioTracks();
+
       // print('value  $value');
       // socket!.emit('candidate', value);
     };
@@ -373,6 +414,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     //String jsonString = sdpController.text;
      //  Map<String, dynamic> jsonString = getSdp;
     // jsonString = parse(getSdp.sdp.toString());
+
+
     print('getSdp >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
     print('getSdp $getSdp');
       dynamic jsonString = await json.decode(getSdp);
@@ -467,17 +510,21 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
      Navigator.pop(context);
   }
 
-  cutCall() {
+  cutCall() async{
 
-    setState(() {
-      _peerConnection!.close();
-      _peerConnection = null;
-    });
-    // _localStream!.dispose();
-    // _localVideoRenderer.dispose();
+
+
+    //   _peerConnection = null;
+
+     // await _peerConnection!.close();
+     // await _localStream!.dispose();
+     // await _localVideoRenderer.dispose();
 
     // await _localVideoRenderer.dispose();
     // await _localStream!.dispose();
+
+
+
     socket!.emit('bye', 'cutCall');
     socket!.disconnect();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>const TestPage()));
@@ -493,19 +540,27 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     });
 
     // _getUserMedia();
-
     super.initState();
   }
 
   @override
-  void dispose() async {
-    await _localVideoRenderer.dispose();
-    await _remoteVideoRenderer.dispose();
-    // _peerConnection!.close();
-    sdpController.dispose();
-    //_controller!.dispose();
-    if (_peerConnection != null) {
-      _peerConnection!.close();
+  void dispose()  {
+    _localVideoRenderer.dispose();
+    _localVideoRenderer.dispose();
+    _localStream?.dispose();
+    _peerConnection?.dispose();
+
+    // await _localVideoRenderer.dispose();
+    // // _peerConnection!.close();
+    // sdpController.dispose();
+    // //_controller!.dispose();
+    // if (_peerConnection != null) {
+    //   _peerConnection!.close();
+    // }
+    if(mounted){
+      setState(() {
+
+      });
     }
     super.dispose();
   }
